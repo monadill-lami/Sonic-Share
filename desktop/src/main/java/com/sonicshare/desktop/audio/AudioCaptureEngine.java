@@ -16,7 +16,7 @@ public class AudioCaptureEngine {
     }
 
     private final UdpAudioSender udpAudioSender;
-    private TargetDataLine targetLine;
+    private volatile TargetDataLine targetLine;
     private volatile boolean isCapturing = false;
     private Thread captureThread;
     private volatile AudioLevelListener levelListener;
@@ -45,16 +45,7 @@ public class AudioCaptureEngine {
             line = (TargetDataLine) AudioSystem.getLine(lineInfo);
         }
 
-        line.open(format, AudioFormatConfig.BUFFER_SIZE * 4);
-        line.start();
-
-        this.targetLine = line;
-        this.isCapturing = true;
-
-        captureThread = new Thread(this::captureLoop, "AudioCapture-Thread");
-        captureThread.setPriority(Thread.MAX_PRIORITY);
-        captureThread.setDaemon(true);
-        captureThread.start();
+        startCapture(line);
     }
 
     public synchronized void startCapture(TargetDataLine line) throws LineUnavailableException {
@@ -81,9 +72,14 @@ public class AudioCaptureEngine {
 
     private void captureLoop() {
         byte[] buffer = new byte[AudioFormatConfig.BUFFER_SIZE];
-        while (isCapturing && targetLine != null && targetLine.isOpen()) {
+        while (isCapturing) {
+            TargetDataLine line = this.targetLine;
+            if (line == null || !line.isOpen()) {
+                break;
+            }
+
             try {
-                int bytesRead = targetLine.read(buffer, 0, buffer.length);
+                int bytesRead = line.read(buffer, 0, buffer.length);
                 if (bytesRead > 0) {
                     if (udpAudioSender != null) {
                         udpAudioSender.sendChunk(buffer, bytesRead);
