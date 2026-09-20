@@ -17,12 +17,12 @@ public class UdpAudioSender {
     }
 
     private final int port;
-    private DatagramSocket socket;
+    private volatile DatagramSocket socket;
     private volatile boolean isRunning = false;
     private volatile boolean isConnected = false;
     private volatile InetAddress clientAddress;
     private volatile int clientPort;
-    private ConnectionListener connectionListener;
+    private volatile ConnectionListener connectionListener;
     private Thread listenerThread;
 
     public UdpAudioSender(int port) {
@@ -58,14 +58,23 @@ public class UdpAudioSender {
                     this.isConnected = true;
                     ConnectionListener listener = this.connectionListener;
                     if (listener != null) {
-                        listener.onConnected(clientAddress, clientPort);
+                        try {
+                            listener.onConnected(clientAddress, clientPort);
+                        } catch (Throwable t) {
+                            // Protect listener thread from uncaught callback exceptions
+                        }
                     }
                 } else if (AudioFormatConfig.CMD_DISCONNECT.equalsIgnoreCase(message)) {
                     this.isConnected = false;
                     this.clientAddress = null;
+                    this.clientPort = 0;
                     ConnectionListener listener = this.connectionListener;
                     if (listener != null) {
-                        listener.onDisconnected();
+                        try {
+                            listener.onDisconnected();
+                        } catch (Throwable t) {
+                            // Protect listener thread from uncaught callback exceptions
+                        }
                     }
                 }
             } catch (SocketException e) {
@@ -78,6 +87,10 @@ public class UdpAudioSender {
     }
 
     public void sendChunk(byte[] data, int length) {
+        if (data == null || length <= 0 || length > data.length) {
+            return;
+        }
+
         InetAddress target = this.clientAddress;
         int targetPort = this.clientPort;
         DatagramSocket currentSocket = this.socket;
@@ -98,6 +111,7 @@ public class UdpAudioSender {
         isRunning = false;
         isConnected = false;
         clientAddress = null;
+        clientPort = 0;
         if (socket != null && !socket.isClosed()) {
             socket.close();
         }
