@@ -32,6 +32,7 @@ public class MainActivity extends AppCompatActivity implements UdpAudioReceiver.
     private UdpAudioReceiver audioReceiver;
     private PowerManager.WakeLock wakeLock;
     private boolean isConnectingOrStreaming = false;
+    private volatile boolean isTimedOut = false;
 
     static boolean isValidIp(String ip) {
         if (ip == null || ip.isEmpty() || !ip.matches("^(\\d{1,3}\\.){3}\\d{1,3}$")) {
@@ -60,6 +61,18 @@ public class MainActivity extends AppCompatActivity implements UdpAudioReceiver.
         } catch (NumberFormatException e) {
             return false;
         }
+    }
+
+    boolean isTimedOut() {
+        return isTimedOut;
+    }
+
+    void setTimedOut(boolean timedOut) {
+        this.isTimedOut = timedOut;
+    }
+
+    boolean isConnectingOrStreaming() {
+        return isConnectingOrStreaming;
     }
 
     @Override
@@ -121,6 +134,7 @@ public class MainActivity extends AppCompatActivity implements UdpAudioReceiver.
             audioReceiver.start();
 
             isConnectingOrStreaming = true;
+            isTimedOut = false;
             ipEditText.setEnabled(false);
             portEditText.setEnabled(false);
             toggleButton.setText(R.string.btn_stop);
@@ -145,6 +159,7 @@ public class MainActivity extends AppCompatActivity implements UdpAudioReceiver.
         }
 
         isConnectingOrStreaming = false;
+        isTimedOut = false;
         ipEditText.setEnabled(true);
         portEditText.setEnabled(true);
         audioLevelBar.setProgress(0);
@@ -156,6 +171,7 @@ public class MainActivity extends AppCompatActivity implements UdpAudioReceiver.
 
     @Override
     public void onConnected() {
+        isTimedOut = false;
         runOnUiThread(() -> {
             statusTextView.setText(R.string.status_streaming);
             statusTextView.setTextColor(ContextCompat.getColor(this, R.color.accent));
@@ -165,6 +181,11 @@ public class MainActivity extends AppCompatActivity implements UdpAudioReceiver.
     @Override
     public void onAudioPacketReceived(float level) {
         runOnUiThread(() -> {
+            if (isTimedOut) {
+                isTimedOut = false;
+                statusTextView.setText(R.string.status_streaming);
+                statusTextView.setTextColor(ContextCompat.getColor(this, R.color.accent));
+            }
             int progress = (int) (level * 100);
             audioLevelBar.setProgress(progress);
         });
@@ -172,6 +193,7 @@ public class MainActivity extends AppCompatActivity implements UdpAudioReceiver.
 
     @Override
     public void onTimedOut() {
+        isTimedOut = true;
         runOnUiThread(() -> {
             statusTextView.setText(R.string.status_timeout);
             statusTextView.setTextColor(ContextCompat.getColor(this, R.color.text_secondary));
@@ -182,6 +204,7 @@ public class MainActivity extends AppCompatActivity implements UdpAudioReceiver.
     @Override
     public void onError(String message) {
         runOnUiThread(() -> {
+            if (isFinishing() || isDestroyed()) return;
             Toast.makeText(this, message, Toast.LENGTH_LONG).show();
             stopStreaming();
         });
@@ -194,7 +217,7 @@ public class MainActivity extends AppCompatActivity implements UdpAudioReceiver.
 
     @Override
     protected void onDestroy() {
-        super.onDestroy();
         stopStreaming();
+        super.onDestroy();
     }
 }
