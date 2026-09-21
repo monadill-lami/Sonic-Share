@@ -8,6 +8,13 @@ import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 
 public class AudioLevelMeter extends JComponent {
+
+    private static final Color COLOR_TRACK = new Color(230, 230, 230);
+    private static final Color COLOR_BORDER = new Color(180, 180, 180);
+    private static final Color COLOR_GREEN = new Color(46, 184, 92);
+    private static final Color COLOR_AMBER = new Color(240, 180, 40);
+    private static final Color COLOR_RED = new Color(230, 80, 80);
+
     private float level = 0.0f; // 0.0 to 1.0
 
     public AudioLevelMeter() {
@@ -37,21 +44,21 @@ public class AudioLevelMeter extends JComponent {
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
             // Background track
-            g2.setColor(new Color(230, 230, 230));
+            g2.setColor(COLOR_TRACK);
             g2.fillRoundRect(0, 0, width, height, 8, 8);
 
             // Filled level
             int fillWidth = (int) (width * level);
             if (fillWidth > 0) {
-                Color barColor = (level > 0.8f) ? new Color(230, 80, 80) :
-                                 (level > 0.5f) ? new Color(240, 180, 40) :
-                                                  new Color(46, 184, 92);
+                Color barColor = (level > 0.8f) ? COLOR_RED :
+                                 (level > 0.5f) ? COLOR_AMBER :
+                                                  COLOR_GREEN;
                 g2.setColor(barColor);
                 g2.fillRoundRect(0, 0, fillWidth, height, 8, 8);
             }
 
             // Border
-            g2.setColor(new Color(180, 180, 180));
+            g2.setColor(COLOR_BORDER);
             g2.drawRoundRect(0, 0, width - 1, height - 1, 8, 8);
         } finally {
             g2.dispose();

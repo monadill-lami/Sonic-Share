@@ -74,7 +74,7 @@ public class AudioCaptureEngine {
         byte[] buffer = new byte[AudioFormatConfig.BUFFER_SIZE];
         while (isCapturing) {
             TargetDataLine line = this.targetLine;
-            if (line == null || !line.isOpen()) {
+            if (!isCapturing || line == null || !line.isOpen()) {
                 break;
             }
 

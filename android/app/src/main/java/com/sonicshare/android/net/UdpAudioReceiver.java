@@ -45,6 +45,7 @@ public class UdpAudioReceiver {
         isRunning = true;
 
         workerThread = new Thread(this::receiveLoop, "UdpAudioReceiver-Worker");
+        workerThread.setDaemon(true);
         workerThread.start();
     }
 

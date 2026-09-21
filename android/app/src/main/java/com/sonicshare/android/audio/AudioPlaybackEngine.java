@@ -8,7 +8,7 @@ import android.media.AudioTrack;
 public class AudioPlaybackEngine {
 
     public static final int SAMPLE_RATE = 44100;
-    private AudioTrack audioTrack;
+    private volatile AudioTrack audioTrack;
     private volatile boolean isPlaying = false;
 
     public synchronized void start() {
@@ -43,11 +43,12 @@ public class AudioPlaybackEngine {
     }
 
     public int writeAudio(byte[] data, int offset, int length) {
-        if (!isPlaying || audioTrack == null || data == null || offset < 0 || length <= 0 || offset + length > data.length) {
+        AudioTrack track = this.audioTrack;
+        if (!isPlaying || track == null || data == null || offset < 0 || length <= 0 || offset + length > data.length) {
             return 0;
         }
         try {
-            return audioTrack.write(data, offset, length);
+            return track.write(data, offset, length);
         } catch (Exception e) {
             return 0;
         }

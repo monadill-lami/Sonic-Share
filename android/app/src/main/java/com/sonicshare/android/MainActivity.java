@@ -138,7 +138,7 @@ public class MainActivity extends AppCompatActivity implements UdpAudioReceiver.
             ipEditText.setEnabled(false);
             portEditText.setEnabled(false);
             toggleButton.setText(R.string.btn_stop);
-            toggleButton.setBackgroundColor(ContextCompat.getColor(this, R.color.danger));
+            toggleButton.setBackgroundTintList(android.content.res.ColorStateList.valueOf(ContextCompat.getColor(this, R.color.danger)));
             statusTextView.setText(R.string.status_streaming);
             statusTextView.setTextColor(ContextCompat.getColor(this, R.color.accent));
 
@@ -164,7 +164,7 @@ public class MainActivity extends AppCompatActivity implements UdpAudioReceiver.
         portEditText.setEnabled(true);
         audioLevelBar.setProgress(0);
         toggleButton.setText(R.string.btn_connect);
-        toggleButton.setBackgroundColor(ContextCompat.getColor(this, R.color.accent));
+        toggleButton.setBackgroundTintList(android.content.res.ColorStateList.valueOf(ContextCompat.getColor(this, R.color.accent)));
         statusTextView.setText(R.string.status_disconnected);
         statusTextView.setTextColor(ContextCompat.getColor(this, R.color.text_secondary));
     }
