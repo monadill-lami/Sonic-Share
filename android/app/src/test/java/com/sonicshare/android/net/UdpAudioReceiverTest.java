@@ -177,6 +177,7 @@ public class UdpAudioReceiverTest {
             serverSocket.receive(disconnectPacket);
             String disconnectMsg = new String(disconnectPacket.getData(), 0, disconnectPacket.getLength(), StandardCharsets.UTF_8);
             assertEquals("DISCONNECT", disconnectMsg);
+            assertEquals(connectPacket.getPort(), disconnectPacket.getPort());
 
             assertTrue(disconnectedLatch.await(2, TimeUnit.SECONDS));
             assertFalse(testEngine.isPlaying());
@@ -243,5 +244,133 @@ public class UdpAudioReceiverTest {
         assertFalse(receiver.isRunning());
         receiver.stop();
         assertFalse(receiver.isRunning());
+    }
+
+    @Test
+    public void testPacketBufferDoesNotTruncateAfterShortPacket() throws Exception {
+        DatagramSocket serverSocket = new DatagramSocket(0, InetAddress.getByName("127.0.0.1"));
+        serverSocket.setSoTimeout(3000);
+        int serverPort = serverSocket.getLocalPort();
+
+        TestPlaybackEngine testEngine = new TestPlaybackEngine();
+        CountDownLatch shortPacketLatch = new CountDownLatch(1);
+        CountDownLatch fullPacketLatch = new CountDownLatch(2);
+
+        UdpAudioReceiver receiver = new UdpAudioReceiver(
+                "127.0.0.1",
+                serverPort,
+                testEngine,
+                new UdpAudioReceiver.ReceiverListener() {
+                    @Override public void onConnected() {}
+                    @Override public void onAudioPacketReceived(float level) {
+                        shortPacketLatch.countDown();
+                        fullPacketLatch.countDown();
+                    }
+                    @Override public void onTimedOut() {}
+                    @Override public void onError(String message) {}
+                    @Override public void onDisconnected() {}
+                }
+        );
+
+        try {
+            receiver.start();
+            byte[] serverBuf = new byte[512];
+            DatagramPacket connectPacket = new DatagramPacket(serverBuf, serverBuf.length);
+            serverSocket.receive(connectPacket);
+
+            // 1. Send short packet (e.g. 64 bytes)
+            byte[] shortData = new byte[64];
+            DatagramPacket shortPacket = new DatagramPacket(
+                    shortData,
+                    shortData.length,
+                    connectPacket.getAddress(),
+                    connectPacket.getPort()
+            );
+            serverSocket.send(shortPacket);
+            assertTrue(shortPacketLatch.await(2, TimeUnit.SECONDS));
+            assertEquals(64, testEngine.getTotalBytesWritten());
+
+            // 2. Send full packet (2048 bytes)
+            byte[] fullData = new byte[2048];
+            DatagramPacket fullPacket = new DatagramPacket(
+                    fullData,
+                    fullData.length,
+                    connectPacket.getAddress(),
+                    connectPacket.getPort()
+            );
+            serverSocket.send(fullPacket);
+            assertTrue(fullPacketLatch.await(2, TimeUnit.SECONDS));
+            // If packet.setLength was missing, total bytes written would be 64 + 64 = 128 instead of 64 + 2048 = 2112
+            assertEquals(64 + 2048, testEngine.getTotalBytesWritten());
+
+        } finally {
+            receiver.stop();
+            serverSocket.close();
+        }
+    }
+
+    @Test
+    public void testRapidRestartLifecycle() throws Exception {
+        DatagramSocket serverSocket = new DatagramSocket(0, InetAddress.getByName("127.0.0.1"));
+        serverSocket.setSoTimeout(3000);
+        int serverPort = serverSocket.getLocalPort();
+
+        TestPlaybackEngine engine1 = new TestPlaybackEngine();
+        CountDownLatch connected1 = new CountDownLatch(1);
+        CountDownLatch disconnected1 = new CountDownLatch(1);
+
+        UdpAudioReceiver receiver = new UdpAudioReceiver(
+                "127.0.0.1",
+                serverPort,
+                engine1,
+                new UdpAudioReceiver.ReceiverListener() {
+                    @Override public void onConnected() { connected1.countDown(); }
+                    @Override public void onAudioPacketReceived(float level) {}
+                    @Override public void onTimedOut() {}
+                    @Override public void onError(String message) {}
+                    @Override public void onDisconnected() { disconnected1.countDown(); }
+                }
+        );
+
+        receiver.start();
+        byte[] buf = new byte[512];
+        DatagramPacket p1 = new DatagramPacket(buf, buf.length);
+        serverSocket.receive(p1);
+        assertTrue(connected1.await(2, TimeUnit.SECONDS));
+
+        // Stop session 1
+        receiver.stop();
+        assertFalse(receiver.isRunning());
+        assertTrue(disconnected1.await(2, TimeUnit.SECONDS));
+
+        // Start session 2 immediately on same receiver instance
+        TestPlaybackEngine engine2 = new TestPlaybackEngine();
+        CountDownLatch connected2 = new CountDownLatch(1);
+        CountDownLatch disconnected2 = new CountDownLatch(1);
+
+        UdpAudioReceiver receiver2 = new UdpAudioReceiver(
+                "127.0.0.1",
+                serverPort,
+                engine2,
+                new UdpAudioReceiver.ReceiverListener() {
+                    @Override public void onConnected() { connected2.countDown(); }
+                    @Override public void onAudioPacketReceived(float level) {}
+                    @Override public void onTimedOut() {}
+                    @Override public void onError(String message) {}
+                    @Override public void onDisconnected() { disconnected2.countDown(); }
+                }
+        );
+
+        receiver2.start();
+        DatagramPacket p2 = new DatagramPacket(buf, buf.length);
+        serverSocket.receive(p2);
+        assertTrue(connected2.await(2, TimeUnit.SECONDS));
+        assertTrue(engine2.isPlaying());
+
+        receiver2.stop();
+        assertFalse(receiver2.isRunning());
+        assertTrue(disconnected2.await(2, TimeUnit.SECONDS));
+        assertFalse(engine2.isPlaying());
+        serverSocket.close();
     }
 }

@@ -30,6 +30,7 @@ public class UdpAudioReceiver {
 
     private DatagramSocket socket;
     private volatile boolean isRunning = false;
+    private volatile InetAddress serverAddr;
     private Thread workerThread;
 
     public UdpAudioReceiver(String serverIp, int serverPort, AudioPlaybackEngine playbackEngine, ReceiverListener listener) {
@@ -48,7 +49,6 @@ public class UdpAudioReceiver {
     }
 
     private void receiveLoop() {
-        InetAddress serverAddr = null;
         try {
             socket = new DatagramSocket();
             socket.setSoTimeout(3000); // 3-second timeout to detect dropped Wi-Fi
@@ -74,6 +74,7 @@ public class UdpAudioReceiver {
 
             while (isRunning) {
                 try {
+                    packet.setLength(receiveBuffer.length);
                     socket.receive(packet);
                     int length = packet.getLength();
                     if (length > 0) {
@@ -106,8 +107,8 @@ public class UdpAudioReceiver {
                 }
             }
         } finally {
-            if (serverAddr != null) {
-                sendDisconnect(serverAddr, serverPort);
+            if (socket != null && !socket.isClosed()) {
+                sendDisconnect(socket, serverAddr, serverPort);
             }
             cleanup();
             if (listener != null) {
@@ -119,17 +120,15 @@ public class UdpAudioReceiver {
         }
     }
 
-    private void sendDisconnect(InetAddress serverAddr, int serverPort) {
+    private void sendDisconnect(DatagramSocket sock, InetAddress addr, int port) {
+        if (sock == null || sock.isClosed()) return;
         try {
-            byte[] disconnectBytes = CMD_DISCONNECT.getBytes(StandardCharsets.UTF_8);
-            DatagramPacket disconnectPacket = new DatagramPacket(disconnectBytes, disconnectBytes.length, serverAddr, serverPort);
-            if (socket != null && !socket.isClosed()) {
-                socket.send(disconnectPacket);
-            } else {
-                try (DatagramSocket tempSocket = new DatagramSocket()) {
-                    tempSocket.send(disconnectPacket);
-                }
+            if (addr == null) {
+                addr = InetAddress.getByName(serverIp);
             }
+            byte[] disconnectBytes = CMD_DISCONNECT.getBytes(StandardCharsets.UTF_8);
+            DatagramPacket disconnectPacket = new DatagramPacket(disconnectBytes, disconnectBytes.length, addr, port);
+            sock.send(disconnectPacket);
         } catch (Exception ignored) {
         }
     }
@@ -160,13 +159,22 @@ public class UdpAudioReceiver {
     }
 
     public synchronized void stop() {
-        if (!isRunning) return;
+        if (!isRunning && workerThread == null) return;
         isRunning = false;
         if (socket != null && !socket.isClosed()) {
+            sendDisconnect(socket, serverAddr, serverPort);
             socket.close();
         }
         if (workerThread != null) {
-            workerThread.interrupt();
+            Thread current = Thread.currentThread();
+            if (workerThread != current) {
+                workerThread.interrupt();
+                try {
+                    workerThread.join(1000);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
             workerThread = null;
         }
     }
