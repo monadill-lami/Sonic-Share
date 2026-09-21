@@ -1,0 +1,12 @@
+<resources>
+    <string name="app_name">Sonic Share</string>
+    <string name="title_app">Sonic Share</string>
+    <string name="subtitle_app">Turn your phone into a laptop speaker</string>
+    <string name="server_ip_label">Laptop Wi-Fi IP Address</string>
+    <string name="server_port_label">Port</string>
+    <string name="btn_connect">Connect &amp; Listen</string>
+    <string name="btn_stop">Stop Listening</string>
+    <string name="status_disconnected">Status: Disconnected</string>
+    <string name="status_streaming">Status: Streaming Live Audio</string>
+    <string name="status_timeout">Status: Waiting for audio packet...</string>
+</resources>
