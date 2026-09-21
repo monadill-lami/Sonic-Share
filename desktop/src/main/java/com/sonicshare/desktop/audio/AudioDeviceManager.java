@@ -39,11 +39,31 @@ public class AudioDeviceManager {
             return null;
         }
 
-        // Prioritize BlackHole virtual audio loopback
+        // 1. Prioritize Linux PulseAudio/PipeWire monitor loopback streams
+        for (Mixer.Info info : mixers) {
+            if (info != null && info.getName() != null) {
+                String name = info.getName().toLowerCase();
+                if (name.contains("monitor")) {
+                    return info;
+                }
+            }
+        }
+
+        // 2. Prioritize macOS BlackHole virtual audio loopback
         for (Mixer.Info info : mixers) {
             if (info != null && info.getName() != null) {
                 String name = info.getName().toLowerCase();
                 if (name.contains("blackhole")) {
+                    return info;
+                }
+            }
+        }
+
+        // 3. Secondary priority for Linux PulseAudio/PipeWire default mixers
+        for (Mixer.Info info : mixers) {
+            if (info != null && info.getName() != null) {
+                String name = info.getName().toLowerCase();
+                if (name.contains("pulse") || name.contains("pipewire")) {
                     return info;
                 }
             }

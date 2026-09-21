@@ -1,0 +1,12 @@
+[Desktop Entry]
+Version=1.0
+Name=Sonic Share
+GenericName=Wireless Audio Streamer
+Comment=Stream Linux Mint system audio to your Android phone
+Exec=bash -c 'cd "$(dirname "%k")" && ./run-linux.sh'
+Icon=audio-speakers
+Terminal=false
+Type=Application
+Categories=AudioVideo;Audio;Network;
+Keywords=audio;stream;wireless;sound;speaker;android;
+StartupNotify=true

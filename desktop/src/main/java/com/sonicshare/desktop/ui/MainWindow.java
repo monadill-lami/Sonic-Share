@@ -87,7 +87,10 @@ public class MainWindow extends JFrame {
         titleLabel.setFont(new Font("SansSerif", Font.BOLD, 22));
         titleLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
 
-        JLabel subtitleLabel = new JLabel("Stream Mac audio to your Android phone");
+        String osName = System.getProperty("os.name", "").toLowerCase();
+        String deviceName = osName.contains("mac") ? "Mac" : (osName.contains("linux") ? "Linux" : "PC");
+
+        JLabel subtitleLabel = new JLabel("Stream " + deviceName + " audio to your Android phone");
         subtitleLabel.setFont(new Font("SansSerif", Font.PLAIN, 12));
         subtitleLabel.setForeground(Color.GRAY);
         subtitleLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
@@ -106,7 +109,7 @@ public class MainWindow extends JFrame {
         ipCard.setBackground(new Color(248, 249, 250));
         ipCard.setMaximumSize(new Dimension(440, 70));
 
-        JLabel ipTitle = new JLabel("YOUR MAC WI-FI IP (ENTER THIS ON PHONE):");
+        JLabel ipTitle = new JLabel("YOUR " + deviceName.toUpperCase() + " WI-FI IP (ENTER THIS ON PHONE):");
         ipTitle.setFont(new Font("SansSerif", Font.BOLD, 10));
         ipTitle.setForeground(new Color(100, 100, 100));
 

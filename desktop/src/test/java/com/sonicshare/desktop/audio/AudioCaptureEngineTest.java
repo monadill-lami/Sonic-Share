@@ -59,6 +59,17 @@ public class AudioCaptureEngineTest {
     }
 
     @Test
+    public void testAudioDeviceManagerPrioritizesLinuxMonitor() {
+        Mixer.Info mic = new TestMixerInfo("HDA Intel PCH (Mic)", "Hardware Microphone");
+        Mixer.Info monitor = new TestMixerInfo("Monitor of Built-in Audio Analog Stereo", "PulseAudio Monitor Source");
+        Mixer.Info lineIn = new TestMixerInfo("Line In", "Analog Input");
+
+        List<Mixer.Info> mixers = List.of(mic, monitor, lineIn);
+        Mixer.Info selected = AudioDeviceManager.findBestInputMixer(mixers);
+        assertEquals(monitor, selected);
+    }
+
+    @Test
     public void testAudioCaptureEngineLifecycle() {
         UdpAudioSender mockSender = new UdpAudioSender(50098);
         AudioCaptureEngine engine = new AudioCaptureEngine(mockSender);

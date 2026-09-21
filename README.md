@@ -29,7 +29,39 @@ Because macOS restricts applications from recording system/speaker audio directl
 
 ---
 
-## 2. Running the Desktop Application (Mac)
+## 2. Running on Linux Mint
+
+### Prerequisites
+Install Java 17 on Linux Mint:
+```bash
+sudo apt update && sudo apt install -y openjdk-17-jre
+```
+
+### Run
+From the `desktop/` directory, simply run:
+```bash
+cd desktop
+./run-linux.sh
+```
+Or execute the standalone JAR directly:
+```bash
+java -jar build/libs/sonic-share-desktop.jar
+```
+
+### Audio Routing on Linux Mint
+Linux Mint uses PulseAudio / PipeWire out of the box:
+1. Sonic Share automatically detects and selects your system's **"Monitor of Built-in Audio Analog Stereo"** (the loopback stream of your computer speakers/headphones).
+2. To fine-tune recording inputs on Linux Mint, you can install PulseAudio Volume Control:
+   ```bash
+   sudo apt install -y pavucontrol
+   pavucontrol
+   ```
+   Under the **Recording** tab, you will see Sonic Share capturing from *Monitor of Built-in Audio*.
+3. *(Fallback)*: If no monitor stream is active, Sonic Share will automatically default to your built-in microphone for testing.
+
+---
+
+## 3. Running the Desktop Application (macOS)
 
 ### Prerequisites
 - JDK 17 or higher
@@ -47,7 +79,7 @@ gradle run
 
 ---
 
-## 3. Running the Mobile Application (Android)
+## 4. Running the Mobile Application (Android)
 
 ### Prerequisites
 - Android Studio Ladybug / Iguana or newer
@@ -69,13 +101,13 @@ gradle run
 
 ---
 
-## 4. Audio Streaming Protocol & Architecture
+## 5. Audio Streaming Protocol & Architecture
 
 ```
 +-------------------------------------------------------------+
-|                     macOS Desktop App                       |
+|                     Desktop App (Linux / Mac)               |
 |                                                             |
-|  [System Audio] -> [BlackHole 2ch / Built-in Mic]           |
+|  [System Audio] -> [Monitor / BlackHole / Built-in Mic]     |
 |                          |                                  |
 |                 AudioCaptureEngine                          |
 |             (TargetDataLine, 44.1kHz Mono PCM)              |
@@ -107,12 +139,12 @@ gradle run
 - **Chunk Size**: 2,048 bytes (~23.22 ms of audio per packet)
 - **Transport**: UDP Datagrams on port `50005`
 - **Control Handshake**:
-  - `CONNECT`: Sent by Android to register its endpoint with the Mac server.
+  - `CONNECT`: Sent by Android to register its endpoint with the desktop server.
   - `DISCONNECT`: Sent when the client disconnects to cleanly reset server state.
 
 ---
 
-## 5. Building & Testing
+## 6. Building & Testing
 
 ### Desktop Suite
 ```bash
@@ -128,7 +160,7 @@ cd android
 
 ---
 
-## 6. Troubleshooting
+## 7. Troubleshooting
 
 - **Firewall Prompt on macOS**: When starting the server for the first time, macOS may ask to allow incoming network connections for Java. Click **Allow**.
 - **Microphone Permissions**: macOS may prompt for microphone permissions when accessing audio lines. Ensure Terminal / IDE has Microphone permissions enabled in **System Settings ➔ Privacy & Security ➔ Microphone**.
