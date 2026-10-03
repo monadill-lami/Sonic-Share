@@ -53,9 +53,9 @@ public class AudioCaptureEngineTest {
         Mixer.Info selected = AudioDeviceManager.findBestInputMixer(mixers);
         assertEquals(blackhole, selected);
 
-        // When BlackHole is absent, the first available mixer is returned
+        // When BlackHole is absent and only microphones are available, null is returned (never fall back to mic)
         List<Mixer.Info> withoutBlackhole = List.of(mic, usbMic);
-        assertEquals(mic, AudioDeviceManager.findBestInputMixer(withoutBlackhole));
+        assertNull(AudioDeviceManager.findBestInputMixer(withoutBlackhole));
     }
 
     @Test
