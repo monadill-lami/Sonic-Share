@@ -51,9 +51,10 @@ public class AudioDeviceManager {
 
     /**
      * Checks if the given audio device corresponds to a supported system audio source.
+     * Permanently blocks devices whose name or description indicates a microphone.
      */
     public static boolean isSupportedSystemAudioDevice(Mixer.Info info) {
-        if (info == null) {
+        if (info == null || isMicrophoneDevice(info)) {
             return false;
         }
         return isSupportedSystemAudioDevice(info.getName()) || isSupportedSystemAudioDevice(info.getDescription());
@@ -92,38 +93,50 @@ public class AudioDeviceManager {
             return null;
         }
 
-        // 1. Prioritize Linux PulseAudio/PipeWire monitor loopback streams
+        // 1. Prioritize macOS ScreenCaptureKit / system audio virtual devices
         for (Mixer.Info info : mixers) {
-            if (info != null && !isMicrophoneDevice(info) && info.getName() != null) {
-                String name = info.getName().toLowerCase();
-                if (name.contains("monitor")) {
-                    return info;
-                }
+            if (matchesKeywords(info, "screencapturekit", "system audio")) {
+                return info;
             }
         }
 
-        // 2. Prioritize macOS BlackHole virtual audio loopback
+        // 2. Prioritize Linux PulseAudio/PipeWire monitor loopback streams
         for (Mixer.Info info : mixers) {
-            if (info != null && !isMicrophoneDevice(info) && info.getName() != null) {
-                String name = info.getName().toLowerCase();
-                if (name.contains("blackhole")) {
-                    return info;
-                }
+            if (matchesKeywords(info, "monitor")) {
+                return info;
             }
         }
 
-        // 3. Secondary priority for Linux PulseAudio/PipeWire default mixers
+        // 3. Prioritize macOS BlackHole virtual audio loopback
         for (Mixer.Info info : mixers) {
-            if (info != null && !isMicrophoneDevice(info) && info.getName() != null) {
-                String name = info.getName().toLowerCase();
-                if (name.contains("pulse") || name.contains("pipewire")) {
-                    return info;
-                }
+            if (matchesKeywords(info, "blackhole")) {
+                return info;
+            }
+        }
+
+        // 4. Secondary priority for Linux PulseAudio/PipeWire default mixers
+        for (Mixer.Info info : mixers) {
+            if (matchesKeywords(info, "pulse", "pipewire")) {
+                return info;
             }
         }
 
         // Zero microphone fallback: Never fall back to microphones or unknown input devices.
         // Returns null if no system monitor or virtual loopback is present.
         return null;
+    }
+
+    private static boolean matchesKeywords(Mixer.Info info, String... keywords) {
+        if (info == null || isMicrophoneDevice(info)) {
+            return false;
+        }
+        String name = info.getName() != null ? info.getName().toLowerCase() : "";
+        String desc = info.getDescription() != null ? info.getDescription().toLowerCase() : "";
+        for (String keyword : keywords) {
+            if (name.contains(keyword) || desc.contains(keyword)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

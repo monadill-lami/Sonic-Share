@@ -53,13 +53,23 @@ public class AudioDeviceManagerTest {
         assertFalse(AudioDeviceManager.isSupportedSystemAudioDevice("Internal Microphone"));
         assertFalse(AudioDeviceManager.isSupportedSystemAudioDevice((String) null));
         assertFalse(AudioDeviceManager.isSupportedSystemAudioDevice((Mixer.Info) null));
+
+        // Generic name like PulseAudio, but description indicates a microphone
+        Mixer.Info pulseWithMicDesc = new TestMixerInfo("PulseAudio", "Internal Microphone Source");
+        assertFalse(AudioDeviceManager.isSupportedSystemAudioDevice(pulseWithMicDesc),
+                "Mixer with mic description must never be classified as supported system audio device");
+
+        // Supported device identified via description
+        Mixer.Info genericWithMonitorDesc = new TestMixerInfo("Audio Device", "PulseAudio Monitor Source");
+        assertTrue(AudioDeviceManager.isSupportedSystemAudioDevice(genericWithMonitorDesc));
     }
 
     @Test
     public void testFindBestInputMixerNeverFallsBackToMicrophone() {
         Mixer.Info mic1 = new TestMixerInfo("MacBook Air Microphone", "Internal Mic");
         Mixer.Info mic2 = new TestMixerInfo("Headset Mic", "USB Headset");
-        List<Mixer.Info> onlyMics = List.of(mic1, mic2);
+        Mixer.Info pulseMic = new TestMixerInfo("PulseAudio", "Internal Microphone");
+        List<Mixer.Info> onlyMics = List.of(mic1, mic2, pulseMic);
 
         // When only microphones are available, findBestInputMixer MUST return null
         assertNull(AudioDeviceManager.findBestInputMixer(onlyMics));
@@ -70,10 +80,14 @@ public class AudioDeviceManagerTest {
     @Test
     public void testFindBestInputMixerPrioritizesLoopbackOverMicrophones() {
         Mixer.Info mic = new TestMixerInfo("MacBook Air Microphone", "Internal Mic");
+        Mixer.Info sck = new TestMixerInfo("macOS System Audio (ScreenCaptureKit)", "ScreenCaptureKit Virtual Device");
         Mixer.Info blackhole = new TestMixerInfo("BlackHole 2ch", "Virtual Audio Driver");
-        Mixer.Info monitor = new TestMixerInfo("Monitor of Built-in Audio", "PulseAudio Monitor");
+        Mixer.Info monitor = new TestMixerInfo("Generic Line", "PulseAudio Monitor Source");
 
-        // Prioritizes Monitor
+        // ScreenCaptureKit / system audio takes high priority
+        assertEquals(sck, AudioDeviceManager.findBestInputMixer(List.of(mic, blackhole, monitor, sck)));
+
+        // Prioritizes Monitor when ScreenCaptureKit is absent (matching via description)
         assertEquals(monitor, AudioDeviceManager.findBestInputMixer(List.of(mic, monitor, blackhole)));
 
         // Prioritizes BlackHole when Monitor is absent
