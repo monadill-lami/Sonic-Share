@@ -11,21 +11,15 @@ Wireless audio streaming from your Mac laptop to an Android phone over local Wi-
 
 ---
 
-## 1. Mac Audio Routing Setup (BlackHole)
-Because macOS restricts applications from recording system/speaker audio directly:
+## 1. Mac Audio Capture (Native ScreenCaptureKit)
+Sonic Share captures system/device audio directly using macOS **ScreenCaptureKit**:
 
-1. Install **BlackHole 2ch** (free, open source virtual audio driver):
-   ```bash
-   brew install blackhole-2ch
-   ```
-2. In macOS **System Settings ➔ Sound ➔ Output**, select **BlackHole 2ch**.
-   *(Audio from YouTube, Spotify, VLC, and browsers will now route directly to BlackHole).*
-3. *(Optional Multi-Output Device)*: To hear audio from your Mac's speakers AND route to BlackHole simultaneously:
-   - Open **Audio MIDI Setup** (`/System/Applications/Utilities/Audio MIDI Setup.app`).
-   - Click the **`+`** icon in the bottom-left and select **Create Multi-Output Device**.
-   - Check both **MacBook Speakers** and **BlackHole 2ch** (enable Drift Correction for BlackHole).
-   - In macOS **System Settings ➔ Sound ➔ Output**, select the **Multi-Output Device**.
-4. *(Fallback)*: If BlackHole is not installed, Sonic Share will automatically detect and use your **Built-in Microphone** for testing and presentation demos.
+- **Zero Drivers Required**: No need to install BlackHole, Soundflower, or create virtual MIDI aggregate devices.
+- **Simultaneous Playback**: Your Mac laptop speakers and your Android phone can play the exact same audio at the same time.
+- **Mute Independence**: ScreenCaptureKit captures system audio pre-fader. **Even if you mute your laptop or turn its volume down to 0, your Android phone continues receiving and playing the sound seamlessly!**
+- **Zero Microphone Access**: Microphone input is **completely removed**. The app will never listen to or stream from your microphone under any circumstance.
+- **Permission**: The first time you start the server on macOS, grant **"Screen & System Audio Recording"** permission in:
+  **System Settings ➔ Privacy & Security ➔ Screen & System Audio Recording**.
 
 ---
 
@@ -57,7 +51,6 @@ Linux Mint uses PulseAudio / PipeWire out of the box:
    pavucontrol
    ```
    Under the **Recording** tab, you will see Sonic Share capturing from *Monitor of Built-in Audio*.
-3. *(Fallback)*: If no monitor stream is active, Sonic Share will automatically default to your built-in microphone for testing.
 
 ---
 
@@ -73,7 +66,7 @@ cd desktop
 gradle run
 ```
 1. The window will open displaying your Mac's Wi-Fi IP and port (e.g. `192.168.1.45:50005`).
-2. Select your audio input device (defaults to BlackHole 2ch if available).
+2. Audio Source defaults to **macOS System Audio (ScreenCaptureKit)**.
 3. Click **"Start Audio Server"**.
 4. The status will display `Listening for connection...`.
 
