@@ -5,11 +5,14 @@ import org.junit.jupiter.api.Test;
 
 import javax.sound.sampled.Mixer;
 import javax.sound.sampled.TargetDataLine;
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -218,5 +221,130 @@ public class AudioCaptureEngineTest {
 
         engine.stopCapture();
         assertFalse(engine.isCapturing());
+    }
+
+    @Test
+    public void testCaptureLoopWithInputStream() throws Exception {
+        UdpAudioSender mockSender = new UdpAudioSender(50102);
+        AudioCaptureEngine engine = new AudioCaptureEngine(mockSender);
+
+        // 15000 in little-endian signed 16-bit PCM: 0x98, 0x3A -> RMS ~ 1.0f
+        byte[] pcmData = new byte[4096];
+        for (int i = 0; i < pcmData.length; i += 2) {
+            pcmData[i] = (byte) 0x98;
+            pcmData[i + 1] = (byte) 0x3A;
+        }
+
+        ByteArrayInputStream in = new ByteArrayInputStream(pcmData);
+        AtomicBoolean levelCallbackInvoked = new AtomicBoolean(false);
+        AtomicReference<Float> lastRms = new AtomicReference<>(0.0f);
+
+        engine.setAudioLevelListener(rms -> {
+            levelCallbackInvoked.set(true);
+            lastRms.set(rms);
+        });
+
+        engine.startCapture(in);
+        assertTrue(engine.isCapturing());
+
+        // Calling startCapture while already capturing is a safe no-op
+        assertDoesNotThrow(() -> engine.startCapture(in));
+
+        Thread.sleep(100);
+
+        engine.stopCapture();
+        assertFalse(engine.isCapturing());
+        assertTrue(levelCallbackInvoked.get());
+        assertEquals(1.0f, lastRms.get(), 0.05f);
+    }
+
+    @Test
+    public void testStopCaptureCleansUpInputStreamAndThread() throws Exception {
+        UdpAudioSender mockSender = new UdpAudioSender(50103);
+        AudioCaptureEngine engine = new AudioCaptureEngine(mockSender);
+
+        AtomicBoolean streamClosed = new AtomicBoolean(false);
+        InputStream blockingIn = new InputStream() {
+            @Override
+            public int read() {
+                try {
+                    Thread.sleep(50);
+                } catch (InterruptedException ignored) {
+                }
+                return 0;
+            }
+
+            @Override
+            public int read(byte[] b, int off, int len) {
+                try {
+                    Thread.sleep(50);
+                } catch (InterruptedException ignored) {
+                }
+                return len;
+            }
+
+            @Override
+            public void close() {
+                streamClosed.set(true);
+            }
+        };
+
+        engine.startCapture(blockingIn);
+        assertTrue(engine.isCapturing());
+
+        engine.stopCapture();
+        assertFalse(engine.isCapturing());
+        assertTrue(streamClosed.get());
+    }
+
+    @Test
+    public void testStartCaptureOnMacUsesScreenCaptureKitProcess() throws Exception {
+        UdpAudioSender mockSender = new UdpAudioSender(50104);
+        AudioCaptureEngine engine = new AudioCaptureEngine(mockSender);
+
+        MacAudioCaptureProcess mockProcess = new MacAudioCaptureProcess(List.of("cat", "/dev/zero"));
+        engine.setMacAudioCaptureProcess(mockProcess);
+
+        engine.startCapture((Mixer.Info) null);
+        assertTrue(engine.isCapturing());
+        assertTrue(mockProcess.isAlive());
+
+        engine.stopCapture();
+        assertFalse(engine.isCapturing());
+        assertFalse(mockProcess.isAlive());
+    }
+
+    @Test
+    public void testStartCaptureWithScreenCaptureKitMixerInfo() throws Exception {
+        UdpAudioSender mockSender = new UdpAudioSender(50105);
+        AudioCaptureEngine engine = new AudioCaptureEngine(mockSender);
+
+        TestMixerInfo sckMixer = new TestMixerInfo("macOS System Audio (ScreenCaptureKit)", "ScreenCaptureKit virtual capture device");
+        MacAudioCaptureProcess mockProcess = new MacAudioCaptureProcess(List.of("cat", "/dev/zero"));
+        engine.setMacAudioCaptureProcess(mockProcess);
+
+        engine.startCapture(sckMixer);
+        assertTrue(engine.isCapturing());
+        assertTrue(mockProcess.isAlive());
+
+        engine.stopCapture();
+        assertFalse(engine.isCapturing());
+        assertFalse(mockProcess.isAlive());
+    }
+
+    @Test
+    public void testStartCaptureOnMacThrowsPermissionDeniedException() {
+        UdpAudioSender mockSender = new UdpAudioSender(50106);
+        AudioCaptureEngine engine = new AudioCaptureEngine(mockSender);
+
+        // Process exiting with code 2 simulates denied screen capture permission
+        MacAudioCaptureProcess deniedProcess = new MacAudioCaptureProcess(List.of("sh", "-c", "exit 2"));
+        engine.setMacAudioCaptureProcess(deniedProcess);
+
+        assertThrows(MacAudioCaptureProcess.PermissionDeniedException.class, () -> {
+            engine.startCapture((Mixer.Info) null);
+        });
+        assertFalse(engine.isCapturing());
+        assertFalse(deniedProcess.isAlive());
     }
 }

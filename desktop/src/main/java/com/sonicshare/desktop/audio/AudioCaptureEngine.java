@@ -8,6 +8,8 @@ import javax.sound.sampled.DataLine;
 import javax.sound.sampled.LineUnavailableException;
 import javax.sound.sampled.Mixer;
 import javax.sound.sampled.TargetDataLine;
+import java.io.IOException;
+import java.io.InputStream;
 
 public class AudioCaptureEngine {
 
@@ -17,6 +19,8 @@ public class AudioCaptureEngine {
 
     private final UdpAudioSender udpAudioSender;
     private volatile TargetDataLine targetLine;
+    private volatile InputStream inputStream;
+    private volatile MacAudioCaptureProcess macProcess;
     private volatile boolean isCapturing = false;
     private Thread captureThread;
     private volatile AudioLevelListener levelListener;
@@ -25,12 +29,25 @@ public class AudioCaptureEngine {
         this.udpAudioSender = udpAudioSender;
     }
 
+    public void setMacAudioCaptureProcess(MacAudioCaptureProcess macProcess) {
+        this.macProcess = macProcess;
+    }
+
     public void setAudioLevelListener(AudioLevelListener listener) {
         this.levelListener = listener;
     }
 
-    public synchronized void startCapture(Mixer.Info mixerInfo) throws LineUnavailableException {
+    public synchronized void startCapture(Mixer.Info mixerInfo) throws LineUnavailableException, IOException {
         if (isCapturing) {
+            return;
+        }
+
+        boolean isMac = System.getProperty("os.name", "").toLowerCase().contains("mac");
+        if (isMac && (mixerInfo == null || isScreenCaptureKitMixer(mixerInfo))) {
+            MacAudioCaptureProcess process = (this.macProcess != null) ? this.macProcess : new MacAudioCaptureProcess();
+            this.macProcess = process;
+            InputStream in = process.start();
+            startCapture(in);
             return;
         }
 
@@ -48,8 +65,34 @@ public class AudioCaptureEngine {
         startCapture(line);
     }
 
+    private static boolean isScreenCaptureKitMixer(Mixer.Info info) {
+        if (info == null) {
+            return false;
+        }
+        String name = (info.getName() != null ? info.getName() : "").toLowerCase();
+        String desc = (info.getDescription() != null ? info.getDescription() : "").toLowerCase();
+        return name.contains("screencapturekit")
+                || name.contains("system audio")
+                || desc.contains("screencapturekit")
+                || desc.contains("system audio");
+    }
+
+    public synchronized void startCapture(InputStream in) {
+        if (isCapturing || in == null) {
+            return;
+        }
+
+        this.inputStream = in;
+        this.isCapturing = true;
+
+        captureThread = new Thread(this::captureLoop, "AudioCapture-Thread");
+        captureThread.setPriority(Thread.MAX_PRIORITY);
+        captureThread.setDaemon(true);
+        captureThread.start();
+    }
+
     public synchronized void startCapture(TargetDataLine line) throws LineUnavailableException {
-        if (isCapturing) {
+        if (isCapturing || line == null) {
             return;
         }
 
@@ -74,12 +117,23 @@ public class AudioCaptureEngine {
         byte[] buffer = new byte[AudioFormatConfig.BUFFER_SIZE];
         while (isCapturing) {
             TargetDataLine line = this.targetLine;
-            if (!isCapturing || line == null || !line.isOpen()) {
+            InputStream in = this.inputStream;
+
+            if (!isCapturing || (line == null && in == null)) {
+                break;
+            }
+            if (line != null && !line.isOpen()) {
                 break;
             }
 
             try {
-                int bytesRead = line.read(buffer, 0, buffer.length);
+                int bytesRead;
+                if (line != null) {
+                    bytesRead = line.read(buffer, 0, buffer.length);
+                } else {
+                    bytesRead = in.read(buffer, 0, buffer.length);
+                }
+
                 if (bytesRead > 0) {
                     if (udpAudioSender != null) {
                         udpAudioSender.sendChunk(buffer, bytesRead);
@@ -98,7 +152,7 @@ public class AudioCaptureEngine {
                     break;
                 }
             } catch (Exception e) {
-                // Line closed or read error
+                // Line / stream closed or read error
                 break;
             }
         }
@@ -137,6 +191,20 @@ public class AudioCaptureEngine {
             } catch (Exception ignored) {
             }
             targetLine = null;
+        }
+        if (macProcess != null) {
+            try {
+                macProcess.stop();
+            } catch (Exception ignored) {
+            }
+            macProcess = null;
+        }
+        if (inputStream != null) {
+            try {
+                inputStream.close();
+            } catch (Exception ignored) {
+            }
+            inputStream = null;
         }
         if (captureThread != null) {
             captureThread.interrupt();
