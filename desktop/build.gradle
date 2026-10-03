@@ -36,3 +36,21 @@ jar {
 test {
     useJUnitPlatform()
 }
+
+tasks.register('compileMacAudioCapture', Exec) {
+    def nativeSrc = file("${projectDir}/../native/mac-audio-capture/main.swift")
+    def outputBin = file("${projectDir}/bin/mac-audio-capture")
+
+    inputs.file nativeSrc
+    outputs.file outputBin
+
+    doFirst {
+        outputBin.parentFile.mkdirs()
+    }
+
+    commandLine 'swiftc', nativeSrc.absolutePath, '-O', '-o', outputBin.absolutePath
+}
+
+if (org.gradle.internal.os.OperatingSystem.current().isMacOsX()) {
+    classes.dependsOn compileMacAudioCapture
+}
