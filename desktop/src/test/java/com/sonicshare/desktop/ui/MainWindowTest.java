@@ -8,6 +8,7 @@ import javax.sound.sampled.Mixer;
 import javax.swing.SwingUtilities;
 import java.awt.GraphicsEnvironment;
 import java.lang.reflect.InvocationTargetException;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -65,6 +66,57 @@ class MainWindowTest {
             assertNotNull(window.getDeviceCombo());
             assertNotNull(window.getUdpAudioSender());
             assertNotNull(window.getCaptureEngine());
+
+            // Check Audio Source combo box on macOS
+            String osName = System.getProperty("os.name", "").toLowerCase();
+            if (osName.contains("mac")) {
+                assertTrue(window.getDeviceCombo().getItemCount() >= 1);
+                MainWindow.MixerItem selected = (MainWindow.MixerItem) window.getDeviceCombo().getSelectedItem();
+                assertNotNull(selected);
+                assertEquals(com.sonicshare.desktop.audio.AudioDeviceManager.MACOS_SYSTEM_AUDIO_NAME, selected.toString());
+            }
+
+            // Verify ZERO microphones in combo box
+            for (int i = 0; i < window.getDeviceCombo().getItemCount(); i++) {
+                MainWindow.MixerItem item = window.getDeviceCombo().getItemAt(i);
+                assertFalse(com.sonicshare.desktop.audio.AudioDeviceManager.isMicrophoneDevice(item.getInfo()),
+                        "Device combo must not contain microphone: " + item);
+            }
+        } finally {
+            SwingUtilities.invokeAndWait(window::dispose);
+        }
+    }
+
+    @Test
+    void testToggleServerWithPermissionDeniedHandlesGracefully() throws Exception {
+        Assumptions.assumeFalse(GraphicsEnvironment.isHeadless(), "Skip UI instantiation in headless environment");
+
+        final boolean[] permissionDialogShown = new boolean[1];
+        final MainWindow[] windowHolder = new MainWindow[1];
+
+        SwingUtilities.invokeAndWait(() -> {
+            com.sonicshare.desktop.net.UdpAudioSender sender = new com.sonicshare.desktop.net.UdpAudioSender(AudioFormatConfig.DEFAULT_PORT);
+            com.sonicshare.desktop.audio.AudioCaptureEngine engine = new com.sonicshare.desktop.audio.AudioCaptureEngine(sender);
+
+            // Mock MacAudioCaptureProcess that throws PermissionDeniedException
+            com.sonicshare.desktop.audio.MacAudioCaptureProcess mockProc = new com.sonicshare.desktop.audio.MacAudioCaptureProcess(List.of("sh", "-c", "exit 2"));
+            engine.setMacAudioCaptureProcess(mockProc);
+
+            windowHolder[0] = new MainWindow(sender, engine) {
+                @Override
+                protected void showPermissionGuidanceDialog() {
+                    permissionDialogShown[0] = true;
+                }
+            };
+        });
+
+        MainWindow window = windowHolder[0];
+        try {
+            SwingUtilities.invokeAndWait(window::toggleServer);
+            assertTrue(permissionDialogShown[0], "Permission guidance dialog should be triggered on permission denial");
+            assertFalse(window.isServerRunning(), "Server should remain stopped on error");
+            assertEquals("Start Audio Server", window.getToggleServerBtn().getText());
+            assertEquals("Status: Stopped", window.getStatusLabel().getText());
         } finally {
             SwingUtilities.invokeAndWait(window::dispose);
         }

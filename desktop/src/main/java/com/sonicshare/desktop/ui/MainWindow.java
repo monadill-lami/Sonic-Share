@@ -90,7 +90,7 @@ public class MainWindow extends JFrame {
         String osName = System.getProperty("os.name", "").toLowerCase();
         String deviceName = osName.contains("mac") ? "Mac" : (osName.contains("linux") ? "Linux" : "PC");
 
-        JLabel subtitleLabel = new JLabel("Stream " + deviceName + " audio to your Android phone");
+        JLabel subtitleLabel = new JLabel("Stream " + deviceName + " device audio to your Android phone");
         subtitleLabel.setFont(new Font("SansSerif", Font.PLAIN, 12));
         subtitleLabel.setForeground(Color.GRAY);
         subtitleLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
@@ -123,11 +123,11 @@ public class MainWindow extends JFrame {
         mainPanel.add(ipCard);
         mainPanel.add(Box.createVerticalStrut(14));
 
-        // Audio Input Selector
+        // Audio Source Selector
         JPanel devicePanel = new JPanel(new BorderLayout(8, 0));
         devicePanel.setBackground(Color.WHITE);
         devicePanel.setMaximumSize(new Dimension(440, 30));
-        JLabel devLabel = new JLabel("Audio Input:");
+        JLabel devLabel = new JLabel("Audio Source:");
         devLabel.setFont(new Font("SansSerif", Font.PLAIN, 13));
 
         deviceCombo = new JComboBox<>();
@@ -174,14 +174,24 @@ public class MainWindow extends JFrame {
     }
 
     private void populateAudioDevices() {
+        boolean isMac = System.getProperty("os.name", "").toLowerCase().contains("mac");
+        MixerItem macDefaultItem = null;
+        if (isMac) {
+            macDefaultItem = new MixerItem(AudioDeviceManager.MACOS_SYSTEM_AUDIO_INFO);
+            deviceCombo.addItem(macDefaultItem);
+        }
+
         List<Mixer.Info> mixers = AudioDeviceManager.getAvailableInputMixers();
         Mixer.Info best = AudioDeviceManager.findBestInputMixer(mixers);
-        MixerItem selectedItem = null;
+        MixerItem selectedItem = macDefaultItem;
 
         for (Mixer.Info m : mixers) {
+            if (isMac && m.getName() != null && m.getName().equalsIgnoreCase(AudioDeviceManager.MACOS_SYSTEM_AUDIO_NAME)) {
+                continue;
+            }
             MixerItem item = new MixerItem(m);
             deviceCombo.addItem(item);
-            if (best != null && m.getName().equals(best.getName())) {
+            if (selectedItem == null && best != null && m.getName().equals(best.getName())) {
                 selectedItem = item;
             }
         }
@@ -228,8 +238,17 @@ public class MainWindow extends JFrame {
                 statusLabel.setForeground(new Color(230, 150, 20));
                 deviceCombo.setEnabled(false);
             } catch (Exception ex) {
+                captureEngine.stopCapture();
                 udpAudioSender.stopListening();
-                JOptionPane.showMessageDialog(this, "Failed to start server: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+                boolean isPermissionDenied = ex instanceof com.sonicshare.desktop.audio.MacAudioCaptureProcess.PermissionDeniedException
+                        || (ex.getCause() instanceof com.sonicshare.desktop.audio.MacAudioCaptureProcess.PermissionDeniedException)
+                        || (captureEngine.getMacAudioCaptureProcess() != null && captureEngine.getMacAudioCaptureProcess().isPermissionDenied());
+
+                if (isPermissionDenied) {
+                    showPermissionGuidanceDialog();
+                } else {
+                    JOptionPane.showMessageDialog(this, "Failed to start server: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+                }
             }
         } else {
             captureEngine.stopCapture();
@@ -241,6 +260,31 @@ public class MainWindow extends JFrame {
             statusLabel.setText("Status: Stopped");
             statusLabel.setForeground(new Color(120, 120, 120));
             deviceCombo.setEnabled(true);
+        }
+    }
+
+    protected void showPermissionGuidanceDialog() {
+        String msg = "Sonic Share requires 'Screen & System Audio Recording' permission to capture your Mac's device audio directly without a microphone.\n\n"
+                + "Please enable it in System Settings ➔ Privacy & Security ➔ Screen & System Audio Recording.";
+        int choice = JOptionPane.showOptionDialog(
+                this,
+                msg,
+                "Permission Required",
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.WARNING_MESSAGE,
+                null,
+                new Object[]{"Open System Settings", "Cancel"},
+                "Open System Settings"
+        );
+        if (choice == 0) {
+            openMacScreenCaptureSettings();
+        }
+    }
+
+    public static void openMacScreenCaptureSettings() {
+        try {
+            Runtime.getRuntime().exec(new String[]{"open", "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"});
+        } catch (Exception ignored) {
         }
     }
 

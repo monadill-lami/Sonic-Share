@@ -10,6 +10,14 @@ import java.util.List;
 
 public class AudioDeviceManager {
 
+    public static final String MACOS_SYSTEM_AUDIO_NAME = "macOS System Audio (ScreenCaptureKit)";
+    public static final Mixer.Info MACOS_SYSTEM_AUDIO_INFO = new Mixer.Info(
+        MACOS_SYSTEM_AUDIO_NAME,
+        "Sonic Share",
+        "Direct macOS desktop audio loopback capture",
+        "1.0"
+    ) {};
+
     /**
      * Checks if the device name indicates a microphone device.
      * Permanently blocks devices containing "mic", "microphone", "headset", etc.

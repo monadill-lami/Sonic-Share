@@ -33,6 +33,10 @@ public class AudioCaptureEngine {
         this.macProcess = macProcess;
     }
 
+    public MacAudioCaptureProcess getMacAudioCaptureProcess() {
+        return this.macProcess;
+    }
+
     public void setAudioLevelListener(AudioLevelListener listener) {
         this.levelListener = listener;
     }
