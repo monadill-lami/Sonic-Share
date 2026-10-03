@@ -347,4 +347,24 @@ public class AudioCaptureEngineTest {
         assertFalse(engine.isCapturing());
         assertFalse(deniedProcess.isAlive());
     }
+
+    @Test
+    public void testCaptureLoopAlignsPartialOddStreamRead() throws Exception {
+        UdpAudioSender mockSender = new UdpAudioSender(50107);
+        AudioCaptureEngine engine = new AudioCaptureEngine(mockSender);
+
+        // 3 bytes stream: odd number of bytes should be aligned down to 2 bytes (1 sample)
+        byte[] oddData = new byte[]{(byte) 0x98, (byte) 0x3A, (byte) 0x12};
+        ByteArrayInputStream in = new ByteArrayInputStream(oddData);
+
+        AtomicBoolean levelCallbackInvoked = new AtomicBoolean(false);
+        engine.setAudioLevelListener(rms -> levelCallbackInvoked.set(true));
+
+        engine.startCapture(in);
+        Thread.sleep(100);
+
+        engine.stopCapture();
+        assertFalse(engine.isCapturing());
+        assertTrue(levelCallbackInvoked.get());
+    }
 }

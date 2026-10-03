@@ -103,10 +103,10 @@ public class MacAudioCaptureProcess {
                     throw new PermissionDeniedException(
                             "Screen recording permission denied for mac-audio-capture (exit code 2)"
                     );
-                } else if (exitCode != 0) {
+                } else {
                     stop();
                     throw new IOException(
-                            "mac-audio-capture exited prematurely with exit code: " + exitCode
+                            "mac-audio-capture terminated unexpectedly with exit code: " + exitCode
                     );
                 }
             }
@@ -169,6 +169,18 @@ public class MacAudioCaptureProcess {
     }
 
     public boolean isPermissionDenied() {
-        return permissionDenied;
+        if (permissionDenied) {
+            return true;
+        }
+        if (process != null && !process.isAlive()) {
+            try {
+                if (process.exitValue() == 2) {
+                    permissionDenied = true;
+                    return true;
+                }
+            } catch (IllegalThreadStateException ignored) {
+            }
+        }
+        return false;
     }
 }

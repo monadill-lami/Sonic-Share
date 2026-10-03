@@ -77,4 +77,20 @@ public class MacAudioCaptureProcessTest {
             assertFalse(process.isPermissionDenied());
         });
     }
+
+    @Test
+    public void testPrematureExitWithCodeZeroThrowsIOException() {
+        MacAudioCaptureProcess process = new MacAudioCaptureProcess(List.of("sh", "-c", "exit 0"));
+        IOException ex = assertThrows(IOException.class, process::start);
+        assertFalse(ex instanceof MacAudioCaptureProcess.PermissionDeniedException);
+        assertFalse(process.isPermissionDenied());
+        assertFalse(process.isAlive());
+    }
+
+    @Test
+    public void testPermissionDeniedDetectedFromTerminatedProcess() {
+        MacAudioCaptureProcess process = new MacAudioCaptureProcess(List.of("sh", "-c", "exit 2"));
+        assertThrows(MacAudioCaptureProcess.PermissionDeniedException.class, process::start);
+        assertTrue(process.isPermissionDenied());
+    }
 }

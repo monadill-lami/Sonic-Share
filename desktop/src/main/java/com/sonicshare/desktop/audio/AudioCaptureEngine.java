@@ -130,8 +130,17 @@ public class AudioCaptureEngine {
                 int bytesRead;
                 if (line != null) {
                     bytesRead = line.read(buffer, 0, buffer.length);
+                    if (bytesRead < 0) {
+                        break;
+                    }
                 } else {
-                    bytesRead = in.read(buffer, 0, buffer.length);
+                    bytesRead = in.readNBytes(buffer, 0, buffer.length);
+                    if (bytesRead == 0) {
+                        break;
+                    }
+                    if (bytesRead % 2 != 0) {
+                        bytesRead -= 1;
+                    }
                 }
 
                 if (bytesRead > 0) {
@@ -148,8 +157,6 @@ public class AudioCaptureEngine {
                             // Protect capture thread from uncaught listener exceptions
                         }
                     }
-                } else if (bytesRead < 0) {
-                    break;
                 }
             } catch (Exception e) {
                 // Line / stream closed or read error
