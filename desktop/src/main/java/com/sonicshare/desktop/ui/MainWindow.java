@@ -53,7 +53,7 @@ public class MainWindow extends JFrame {
     }
 
     public MainWindow(UdpAudioSender sender, AudioCaptureEngine engine) {
-        super("Sonic Share ");
+        super("Sonic Share");
         this.udpAudioSender = sender != null ? sender : new UdpAudioSender(AudioFormatConfig.DEFAULT_PORT);
         this.captureEngine = engine != null ? engine : new AudioCaptureEngine(this.udpAudioSender);
 
